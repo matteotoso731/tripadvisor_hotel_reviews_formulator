@@ -11,16 +11,7 @@ st.set_page_config(
     layout="wide",
 )
 
-st.markdown(
-    """
-    <style>
-    h1 {
-        color: #00a680 !important; /* TripAdvisor green */
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+
 
 # Light TripAdvisor-ish theming
 st.markdown(
