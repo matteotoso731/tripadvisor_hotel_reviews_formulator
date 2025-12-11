@@ -11,7 +11,10 @@ st.set_page_config(
     layout="wide",
 )
 
-
+st.markdown(
+    "<h1 style='color:#00a680;'>TripAdvisor Hotel Review Refiner 🦉</h1>",
+    unsafe_allow_html=True,
+)
 
 # Light TripAdvisor-ish theming
 st.markdown(
