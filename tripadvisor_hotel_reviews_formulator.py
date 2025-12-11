@@ -16,7 +16,7 @@ st.set_page_config(
 # ============================
 
 st.markdown(
-    "<h1 style='color:#00a680; font-weight:700; font-size:2.2rem;'>"
+    "<h1 style='color:#00a680; font-weight:700; font-size:2.1rem;'>"
     "TripAdvisor Hotel Review Refiner 🦉"
     "</h1>",
     unsafe_allow_html=True,
