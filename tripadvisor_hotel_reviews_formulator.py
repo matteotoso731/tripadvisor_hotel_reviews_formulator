@@ -24,7 +24,7 @@ st.markdown(
         padding-bottom: 2rem;
     }
 
-    /* Title styling */
+    /* Title styling (kept for other things if needed, not used for main title now) */
     .ta-title {
         font-size: 2.2rem;
         font-weight: 700;
@@ -158,12 +158,8 @@ ALLOWED_TOPICS = set(ASPECT_MAP.values())
 # ============================
 
 def predict_stars(review: str) -> int:
-    """
-    Use Pipeline 1 to predict a star rating (1–5) for the review.
-    The model returns labels like '2 stars', so we extract the number.
-    """
     rating_pipe = load_rating_pipe()
-    out = rating_pipe(review)[0]  # e.g. {'label': '2 stars', 'score': ...}
+    out = rating_pipe(review)[0]
     label = out["label"]
     digits = "".join(ch for ch in label if ch.isdigit())
     if digits:
@@ -174,28 +170,18 @@ def predict_stars(review: str) -> int:
 
 
 def extract_aspects(review: str):
-    """
-    Use Pipeline 2 (NER) to extract aspect words and map them to business topics.
-    Returns a sorted list of high-level topics.
-    """
     aspect_pipe = load_aspect_pipe()
     ents = aspect_pipe(review)
     topics = set()
-
     for e in ents:
         raw_label = e.get("entity_group")
         mapped_topic = ASPECT_MAP.get(raw_label)
         if mapped_topic in ALLOWED_TOPICS:
             topics.add(mapped_topic)
-
     return sorted(topics)
 
 
 def paraphrase_review(review: str) -> str:
-    """
-    Use Pipeline 3 to paraphrase / clean the review.
-    This should make the text more fluent and standardized.
-    """
     paraphrase_pipe = load_paraphrase_pipe()
     out = paraphrase_pipe(
         review,
@@ -207,10 +193,6 @@ def paraphrase_review(review: str) -> str:
 
 
 def stars_to_string(stars: int) -> str:
-    """
-    Convert an integer star rating (1–5) into a string with filled/empty stars.
-    Example: 4 -> '★★★★☆'
-    """
     stars = max(1, min(5, stars))
     return "★" * stars + "☆" * (5 - stars)
 
@@ -227,13 +209,18 @@ with st.sidebar:
         - ⭐ Sentiment-based star rating  
         - 🧩 Topic / aspect extraction  
         - ✏️ Review paraphrasing  
+
+        Inspired by a **TripAdvisor-style** review experience and built
+        as a deep-learning business application using Hugging Face pipelines.
         """
     )
     st.divider()
     st.markdown("#### 💡 Tips")
     st.markdown(
         """
-        - Use it as a tool for: **improve, standardize and correct reviews**
+        - Write at least **10 words**  
+        - Describe **food, staff, location, ambience**  
+        - Use it as a tool for: improve, standardize and correct reviews
         """
     )
 
@@ -242,12 +229,10 @@ with st.sidebar:
 # 5) MAIN LAYOUT
 # ============================
 
+st.title("TripAdvisor-Style Hotel Review Refiner 🦉")
+
 st.markdown(
-    '<div class="ta-title">🦉 TripAdvisor-Style Hotel Review Refiner</div>',
-    unsafe_allow_html=True,
-)
-st.markdown(
-    '<div class="ta-subtitle">Draft an hotel review and get an AI-refined review: star rating, topics, and a polished version of the text.</div>',
+    '<div class="ta-subtitle">Draft a hotel review and get an AI-refined review with star rating, topics, and a polished version of the text.</div>',
     unsafe_allow_html=True,
 )
 
@@ -255,9 +240,9 @@ left_col, right_col = st.columns([1.1, 1.1])
 
 # ---------- LEFT: INPUT ----------
 with left_col:
-    st.markdown("### ✍️ Draft your review.")
+    st.markdown("### ✍️ Draft your review")
 
-    # Hotel name (optional) immediately under the heading
+    # Hotel name (optional) under the title
     hotel_name = st.text_input(
         "Hotel name (optional)",
         placeholder="e.g. Grand Ocean View Hotel",
@@ -269,40 +254,45 @@ with left_col:
         "However, the room was a bit noisy at night."
     )
 
-    # Main review text
-    review_text = st.text_area(
+    # Ensure key in session_state
+    if "review_input" not in st.session_state:
+        st.session_state.review_input = ""
+
+    # Main review text area
+    st.text_area(
         "Hotel review",
         placeholder="Write at least 10 words describing your stay, staff, food, location, ambience...",
         height=200,
+        key="review_input",
     )
 
-    # Dropdowns for additional metadata, under the review box
-    trip_type = st.selectbox(
-        "Trip type",
-        ["Not specified", "Business", "Couples", "Family", "Friends", "Solo"],
-        index=0,
-    )
-    stay_year = st.selectbox(
-        "Year of stay",
-        ["Not specified", "2025", "2024", "2023", "2022", "2021"],
-        index=0,
-    )
+    # Trip type + year grouped in a single expander (like before)
+    with st.expander("Optional review metadata", expanded=False):
+        trip_type = st.selectbox(
+            "Trip type",
+            ["Not specified", "Business", "Couples", "Family", "Friends", "Solo"],
+            index=0,
+        )
+        stay_year = st.selectbox(
+            "Year of stay",
+            ["Not specified", "2025", "2024", "2023", "2022", "2021"],
+            index=0,
+        )
 
-    # Checkbox under metadata
+    # Checkbox under the metadata; ticking it fills the input box with the example
     use_example = st.checkbox(
         "Use example review to see what the output looks like",
         value=False,
     )
 
-    if use_example:
-        review_text = default_example
-        st.info("Example review loaded; you can still edit it if you want.")
+    if use_example and st.session_state.review_input.strip() == "":
+        st.session_state.review_input = default_example
 
-    # Button
-    refine_button = st.button("Refine review", use_container_width=True)
+    # Button with magnifying glass
+    refine_button = st.button("🔍 Refine review", use_container_width=True)
 
-    # Validation + store in session
     if refine_button:
+        review_text = st.session_state.review_input
         if not review_text.strip():
             st.warning("Review text cannot be empty.")
         else:
@@ -328,14 +318,9 @@ with right_col:
         meta = st.session_state.get("last_meta", {})
 
         with st.spinner("Running Hugging Face pipelines on your review..."):
-            # 1) Predict rating (Pipeline 1)
             stars = predict_stars(review)
             star_string = stars_to_string(stars)
-
-            # 2) Extract topics (Pipeline 2)
             topics = extract_aspects(review)
-
-            # 3) Paraphrase / clean the review (Pipeline 3)
             cleaned_review = paraphrase_review(review)
 
         # Single big block that contains all the output
@@ -345,13 +330,11 @@ with right_col:
         title_line = meta.get("hotel_name") or "Your stay"
         st.markdown(f"#### 🏨 {title_line}")
 
-        # Meta line
         meta_bits = []
         if meta.get("trip_type") and meta["trip_type"] != "Not specified":
             meta_bits.append(f"Trip type: **{meta['trip_type']}**")
         if meta.get("stay_year") and meta["stay_year"] != "Not specified":
             meta_bits.append(f"Stayed in: **{meta['stay_year']}**")
-
         if meta_bits:
             st.markdown(" · ".join(meta_bits))
 
@@ -364,7 +347,7 @@ with right_col:
             unsafe_allow_html=True,
         )
 
-        # Topics section inside the same block
+        # Topics
         st.markdown(
             '<div class="ta-section-title">🧩 Topics detected</div>',
             unsafe_allow_html=True,
@@ -379,7 +362,7 @@ with right_col:
                 "_No explicit topics detected. The review might be too generic._"
             )
 
-        # Cleaned review (no explicit title, just the box)
+        # Cleaned review (no separate title, just the box)
         st.markdown(
             f'<div class="ta-review-box">{cleaned_review}</div>',
             unsafe_allow_html=True,
