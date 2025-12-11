@@ -24,13 +24,7 @@ st.markdown(
         padding-bottom: 2rem;
     }
 
-    /* Title styling (kept for other things if needed, not used for main title now) */
-    .ta-title {
-        font-size: 2.2rem;
-        font-weight: 700;
-        color: #00a680; /* TripAdvisor green-ish */
-        margin-bottom: 0.2rem;
-    }
+    /* Subtitle under title */
     .ta-subtitle {
         font-size: 0.95rem;
         color: #555;
@@ -220,7 +214,7 @@ with st.sidebar:
         """
         - Write at least **10 words**  
         - Describe **food, staff, location, ambience**  
-        - Use it as a tool for: improve, standardize and correct reviews
+        - Use it as a tool for: **improve, standardize and correct reviews**
         """
     )
 
@@ -242,7 +236,7 @@ left_col, right_col = st.columns([1.1, 1.1])
 with left_col:
     st.markdown("### ✍️ Draft your review")
 
-    # Hotel name (optional) under the title
+    # Hotel name (optional)
     hotel_name = st.text_input(
         "Hotel name (optional)",
         placeholder="e.g. Grand Ocean View Hotel",
@@ -254,19 +248,26 @@ with left_col:
         "However, the room was a bit noisy at night."
     )
 
-    # Ensure key in session_state
-    if "review_input" not in st.session_state:
-        st.session_state.review_input = ""
-
-    # Main review text area
-    st.text_area(
-        "Hotel review",
-        placeholder="Write at least 10 words describing your stay, staff, food, location, ambience...",
-        height=200,
-        key="review_input",
+    # Checkbox: if ticked, we show the example directly in the textarea
+    use_example = st.checkbox(
+        "Use example review to see what the output looks like",
+        value=False,
     )
 
-    # Trip type + year grouped in a single expander (like before)
+    if use_example:
+        review_text = st.text_area(
+            "Hotel review",
+            value=default_example,
+            height=200,
+        )
+    else:
+        review_text = st.text_area(
+            "Hotel review",
+            placeholder="Write at least 10 words describing your stay, staff, food, location, ambience...",
+            height=200,
+        )
+
+    # Trip type + year grouped in a single expander (as optional metadata)
     with st.expander("Optional review metadata", expanded=False):
         trip_type = st.selectbox(
             "Trip type",
@@ -279,20 +280,10 @@ with left_col:
             index=0,
         )
 
-    # Checkbox under the metadata; ticking it fills the input box with the example
-    use_example = st.checkbox(
-        "Use example review to see what the output looks like",
-        value=False,
-    )
-
-    if use_example and st.session_state.review_input.strip() == "":
-        st.session_state.review_input = default_example
-
     # Button with magnifying glass
     refine_button = st.button("🔍 Refine review", use_container_width=True)
 
     if refine_button:
-        review_text = st.session_state.review_input
         if not review_text.strip():
             st.warning("Review text cannot be empty.")
         else:
