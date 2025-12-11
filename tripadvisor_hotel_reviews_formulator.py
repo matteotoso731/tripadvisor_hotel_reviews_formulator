@@ -6,8 +6,8 @@ from transformers import pipeline
 # ============================
 
 st.set_page_config(
-    page_title="TripAdvisor Hotel Review Formulator",
-    page_icon="🛎️",
+    page_title="TripAdvisor-Style Hotel Review Refiner",
+    page_icon="🦉",
     layout="wide",
 )
 
@@ -41,7 +41,7 @@ st.markdown(
     .ta-card {
         background-color: #ffffff;
         border-radius: 12px;
-        padding: 1.2rem 1.4rem;
+        padding: 1.4rem 1.6rem;
         box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         margin-bottom: 1rem;
         border: 1px solid #e3e8ef;
@@ -52,6 +52,7 @@ st.markdown(
         font-size: 1.8rem;
         color: #00a680;
         line-height: 1.2;
+        margin-top: 0.4rem;
     }
     .ta-stars-text {
         font-size: 0.9rem;
@@ -72,12 +73,13 @@ st.markdown(
         border: 1px solid #b5e1cf;
     }
 
-    /* Section titles */
+    /* Section titles inside output block */
     .ta-section-title {
         font-weight: 600;
         font-size: 1rem;
         margin-bottom: 0.4rem;
         color: #222;
+        margin-top: 1rem;
     }
 
     /* Cleaned review text */
@@ -88,6 +90,7 @@ st.markdown(
         padding: 0.8rem 1rem;
         font-size: 0.95rem;
         line-height: 1.5;
+        margin-top: 0.4rem;
     }
 
     /* Small meta text */
@@ -220,25 +223,17 @@ with st.sidebar:
     st.markdown("### 🧭 Navigation")
     st.markdown(
         """
-        This app helps you **analyze hotel reviews** using:
+        This app helps you **optimize hotel reviews** using:
         - ⭐ Sentiment-based star rating  
         - 🧩 Topic / aspect extraction  
         - ✏️ Review paraphrasing  
-
-        Inspired by a **TripAdvisor-style** review experience and built
-        as a deep-learning business application using Hugging Face pipelines.
         """
     )
     st.divider()
     st.markdown("#### 💡 Tips")
     st.markdown(
         """
-        - Write at least **10 words**  
-        - Describe **food, staff, location, ambience**  
-        - Use it as a tool for:  
-          - Quality monitoring  
-          - Summarizing customer feedback  
-          - Standardizing reviews
+        - Use it as a tool for: **improve, standardize and correct reviews**
         """
     )
 
@@ -247,30 +242,26 @@ with st.sidebar:
 # 5) MAIN LAYOUT
 # ============================
 
-st.markdown('<div class="ta-title">TripAdvisor Hotel Reviews Formulator</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="ta-subtitle">Paste a hotel review and get an AI-powered summary: star rating, topics, and a polished version of the text.</div>',
+    '<div class="ta-title">🦉 TripAdvisor-Style Hotel Review Refiner</div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<div class="ta-subtitle">Draft an hotel review and get an AI-refined review: star rating, topics, and a polished version of the text.</div>',
     unsafe_allow_html=True,
 )
 
 left_col, right_col = st.columns([1.1, 1.1])
 
+# ---------- LEFT: INPUT ----------
 with left_col:
-    st.markdown("### ✍️ Write your review")
+    st.markdown("### ✍️ Draft your review.")
 
-    with st.container():
-        with st.expander("Optional review metadata (for the TripAdvisor look)", expanded=False):
-            hotel_name = st.text_input("Hotel name (optional)", placeholder="e.g. Grand Ocean View Hotel")
-            trip_type = st.selectbox(
-                "Trip type (optional)",
-                ["Not specified", "Business", "Couples", "Family", "Friends", "Solo"],
-                index=0,
-            )
-            stay_year = st.selectbox(
-                "Year of stay (optional)",
-                ["Not specified", "2025", "2024", "2023", "2022", "2021"],
-                index=0,
-            )
+    # Hotel name (optional) immediately under the heading
+    hotel_name = st.text_input(
+        "Hotel name (optional)",
+        placeholder="e.g. Grand Ocean View Hotel",
+    )
 
     default_example = (
         "The hotel was in a fantastic location near the city center. The staff were incredibly friendly "
@@ -278,48 +269,65 @@ with left_col:
         "However, the room was a bit noisy at night."
     )
 
-    use_example = st.checkbox("Use example review", value=False)
+    # Main review text
+    review_text = st.text_area(
+        "Hotel review",
+        placeholder="Write at least 10 words describing your stay, staff, food, location, ambience...",
+        height=200,
+    )
+
+    # Dropdowns for additional metadata, under the review box
+    trip_type = st.selectbox(
+        "Trip type",
+        ["Not specified", "Business", "Couples", "Family", "Friends", "Solo"],
+        index=0,
+    )
+    stay_year = st.selectbox(
+        "Year of stay",
+        ["Not specified", "2025", "2024", "2023", "2022", "2021"],
+        index=0,
+    )
+
+    # Checkbox under metadata
+    use_example = st.checkbox(
+        "Use example review to see what the output looks like",
+        value=False,
+    )
+
     if use_example:
-        review_text = st.text_area(
-            "Hotel review",
-            value=default_example,
-            height=200,
-        )
-    else:
-        review_text = st.text_area(
-            "Hotel review",
-            placeholder="Write at least 10 words describing your stay, staff, food, location, ambience...",
-            height=200,
-        )
+        review_text = default_example
+        st.info("Example review loaded; you can still edit it if you want.")
 
-    analyze_button = st.button("🔍 Analyze Review", use_container_width=True)
+    # Button
+    refine_button = st.button("Refine review", use_container_width=True)
 
-    # Validation message
-    if analyze_button:
-        word_count = len(review_text.split())
-        if word_count < 10:
-            st.warning("Please enter a longer review (at least 10 words).")
-        elif not review_text.strip():
+    # Validation + store in session
+    if refine_button:
+        if not review_text.strip():
             st.warning("Review text cannot be empty.")
         else:
-            st.session_state["last_review"] = review_text
-            st.session_state["last_meta"] = {
-                "hotel_name": hotel_name,
-                "trip_type": trip_type,
-                "stay_year": stay_year,
-            }
+            word_count = len(review_text.split())
+            if word_count < 10:
+                st.warning("Please enter a longer review (at least 10 words).")
+            else:
+                st.session_state["last_review"] = review_text
+                st.session_state["last_meta"] = {
+                    "hotel_name": hotel_name,
+                    "trip_type": trip_type,
+                    "stay_year": stay_year,
+                }
 
+# ---------- RIGHT: OUTPUT ----------
 with right_col:
-    st.markdown("### 📊 AI Analysis")
+    st.markdown("### 📊 Output")
 
     if "last_review" not in st.session_state:
-        st.info("Submit a review on the left to see the analysis here.")
+        st.info("Refine a review on the left to see the output here.")
     else:
         review = st.session_state["last_review"]
         meta = st.session_state.get("last_meta", {})
 
         with st.spinner("Running Hugging Face pipelines on your review..."):
-
             # 1) Predict rating (Pipeline 1)
             stars = predict_stars(review)
             star_string = stars_to_string(stars)
@@ -330,7 +338,7 @@ with right_col:
             # 3) Paraphrase / clean the review (Pipeline 3)
             cleaned_review = paraphrase_review(review)
 
-        # ---- Summary Card ----
+        # Single big block that contains all the output
         st.markdown('<div class="ta-card">', unsafe_allow_html=True)
 
         # Header with hotel name + meta
@@ -356,27 +364,29 @@ with right_col:
             unsafe_allow_html=True,
         )
 
-        st.markdown("</div>", unsafe_allow_html=True)  # end card
-
-        # ---- Topics Card ----
-        st.markdown('<div class="ta-card">', unsafe_allow_html=True)
-        st.markdown('<div class="ta-section-title">🧩 Topics detected</div>', unsafe_allow_html=True)
-
-        if topics:
-            chips_html = "".join([f'<span class="ta-chip">{t}</span>' for t in topics])
-            st.markdown(chips_html, unsafe_allow_html=True)
-        else:
-            st.markdown("_No explicit topics detected. The review might be too generic._")
-
-        st.markdown("</div>", unsafe_allow_html=True)  # end card
-
-        # ---- Cleaned Review Card ----
-        st.markdown('<div class="ta-card">', unsafe_allow_html=True)
-        st.markdown('<div class="ta-section-title">✏️ Paraphrased / cleaned review</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="ta-review-box">{cleaned_review}</div>', unsafe_allow_html=True)
+        # Topics section inside the same block
         st.markdown(
-            '<div class="ta-meta">This version is generated automatically to standardize the writing style.</div>',
+            '<div class="ta-section-title">🧩 Topics detected</div>',
             unsafe_allow_html=True,
         )
-        st.markdown("</div>", unsafe_allow_html=True)  # end card
+        if topics:
+            chips_html = "".join(
+                [f'<span class="ta-chip">{t}</span>' for t in topics]
+            )
+            st.markdown(chips_html, unsafe_allow_html=True)
+        else:
+            st.markdown(
+                "_No explicit topics detected. The review might be too generic._"
+            )
 
+        # Cleaned review (no explicit title, just the box)
+        st.markdown(
+            f'<div class="ta-review-box">{cleaned_review}</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div class="ta-meta">This version is generated automatically to standardize and refine the writing style.</div>',
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("</div>", unsafe_allow_html=True)  # end big output card
