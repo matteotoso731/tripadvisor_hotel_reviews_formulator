@@ -5,12 +5,6 @@ from transformers import pipeline
 # 1) PAGE CONFIG & STYLE
 # ============================
 
-st.set_page_config(
-    page_title="TripAdvisor Hotel Review Refiner",
-    page_icon="🦉",
-    layout="wide",
-)
-
 st.markdown(
     "<h1 style='color:#00a680;'>TripAdvisor Hotel Review Refiner 🦉</h1>",
     unsafe_allow_html=True,
