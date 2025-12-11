@@ -2,35 +2,41 @@ import streamlit as st
 from transformers import pipeline
 
 # ============================
-# 1) PAGE CONFIG & STYLE
+# 1) PAGE CONFIG
+# ============================
+
+st.set_page_config(
+    page_title="TripAdvisor Hotel Review Refiner",
+    page_icon="🦉",
+    layout="wide",
+)
+
+# ============================
+# 2) PAGE TITLE (GREEN)
 # ============================
 
 st.markdown(
-    "<h1 style='color:#00a680;'>TripAdvisor Hotel Review Refiner 🦉</h1>",
+    "<h1 style='color:#00a680; font-weight:700;'>TripAdvisor Hotel Review Refiner 🦉</h1>",
     unsafe_allow_html=True,
 )
 
-# Light TripAdvisor-ish theming
+st.markdown(
+    '<div style="font-size:0.95rem; color:#555; margin-bottom:1.5rem;">'
+    'Draft a hotel review and get an AI-refined review with star rating, topics, and a polished version of the text.'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
+# ============================
+# 3) STYLE BLOCK
+# ============================
+
 st.markdown(
     """
     <style>
-    /* Global */
-    .main {
-        background-color: #f5f7f9;
-    }
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
+    .main { background-color: #f5f7f9; }
+    .block-container { padding-top: 2rem; }
 
-    /* Subtitle under title */
-    .ta-subtitle {
-        font-size: 0.95rem;
-        color: #555;
-        margin-bottom: 1.5rem;
-    }
-
-    /* Card containers */
     .ta-card {
         background-color: #ffffff;
         border-radius: 12px;
@@ -40,20 +46,19 @@ st.markdown(
         border: 1px solid #e3e8ef;
     }
 
-    /* Star rating */
     .ta-stars {
         font-size: 1.8rem;
         color: #00a680;
         line-height: 1.2;
         margin-top: 0.4rem;
     }
+
     .ta-stars-text {
         font-size: 0.9rem;
         color: #555;
         margin-top: 0.2rem;
     }
 
-    /* Topic chips */
     .ta-chip {
         display: inline-block;
         padding: 0.25rem 0.7rem;
@@ -66,34 +71,26 @@ st.markdown(
         border: 1px solid #b5e1cf;
     }
 
-    /* Section titles inside output block */
     .ta-section-title {
         font-weight: 600;
         font-size: 1rem;
+        margin-top: 1rem;
         margin-bottom: 0.4rem;
         color: #222;
-        margin-top: 1rem;
     }
 
-    /* Cleaned review text */
     .ta-review-box {
         background-color: #f8fafc;
         border-radius: 10px;
         border: 1px solid #e3e8ef;
-        padding: 0.8rem 1rem;
+        padding: 0.9rem 1rem;
         font-size: 0.95rem;
         line-height: 1.5;
         margin-top: 0.4rem;
     }
 
-    /* Small meta text */
-    .ta-meta {
-        font-size: 0.8rem;
-        color: #777;
-        margin-top: 0.4rem;
-    }
+    .ta-meta { font-size: 0.8rem; color: #777; margin-top: 0.4rem; }
 
-    /* Sidebar tweaks */
     [data-testid="stSidebar"] {
         background-color: #f3f7f5;
         border-right: 1px solid #e2e8f0;
@@ -104,7 +101,7 @@ st.markdown(
 )
 
 # ============================
-# 2) PIPELINES (CACHED)
+# 4) LOAD MODELS (CACHED)
 # ============================
 
 @st.cache_resource(show_spinner=True)
@@ -117,23 +114,19 @@ def load_rating_pipe():
 
 @st.cache_resource(show_spinner=True)
 def load_aspect_pipe():
-    ASPECT_MODEL_NAME = "dvquys/ner-finetune-restaurant-reviews-aspects"
     return pipeline(
         "token-classification",
-        model=ASPECT_MODEL_NAME,
+        model="dvquys/ner-finetune-restaurant-reviews-aspects",
         aggregation_strategy="simple",
     )
 
 @st.cache_resource(show_spinner=True)
 def load_paraphrase_pipe():
-    PARA_MODEL_ID = "humarin/chatgpt_paraphraser_on_T5_base"
     return pipeline(
         "text2text-generation",
-        model=PARA_MODEL_ID,
+        model="humarin/chatgpt_paraphraser_on_T5_base",
     )
 
-
-# Map raw model labels to business-level topics
 ASPECT_MAP = {
     "FOOD": "Food & Beverage",
     "BEVERAGE": "Food & Beverage",
@@ -145,53 +138,31 @@ ASPECT_MAP = {
 }
 ALLOWED_TOPICS = set(ASPECT_MAP.values())
 
-
 # ============================
-# 3) HELPER FUNCTIONS
+# 5) FUNCTIONS
 # ============================
 
-def predict_stars(review: str) -> int:
-    rating_pipe = load_rating_pipe()
-    out = rating_pipe(review)[0]
-    label = out["label"]
-    digits = "".join(ch for ch in label if ch.isdigit())
-    if digits:
-        stars = int(digits)
-    else:
-        stars = 3
-    return max(1, min(5, stars))
+def predict_stars(review):
+    out = load_rating_pipe()(review)[0]
+    digits = "".join(ch for ch in out["label"] if ch.isdigit())
+    return max(1, min(5, int(digits) if digits else 3))
 
+def extract_aspects(review):
+    ents = load_aspect_pipe()(review)
+    topics = {ASPECT_MAP.get(e["entity_group"]) for e in ents}
+    return sorted(t for t in topics if t in ALLOWED_TOPICS)
 
-def extract_aspects(review: str):
-    aspect_pipe = load_aspect_pipe()
-    ents = aspect_pipe(review)
-    topics = set()
-    for e in ents:
-        raw_label = e.get("entity_group")
-        mapped_topic = ASPECT_MAP.get(raw_label)
-        if mapped_topic in ALLOWED_TOPICS:
-            topics.add(mapped_topic)
-    return sorted(topics)
-
-
-def paraphrase_review(review: str) -> str:
-    paraphrase_pipe = load_paraphrase_pipe()
-    out = paraphrase_pipe(
-        review,
-        max_length=256,
-        num_beams=4,
-        do_sample=False,
+def paraphrase(review):
+    out = load_paraphrase_pipe()(
+        review, max_length=256, num_beams=4, do_sample=False
     )[0]["generated_text"]
     return out.strip()
 
-
-def stars_to_string(stars: int) -> str:
-    stars = max(1, min(5, stars))
+def stars_to_string(stars):
     return "★" * stars + "☆" * (5 - stars)
 
-
 # ============================
-# 4) SIDEBAR
+# 6) SIDEBAR
 # ============================
 
 with st.sidebar:
@@ -203,8 +174,7 @@ with st.sidebar:
         - 🧩 Topic / aspect extraction  
         - ✏️ Review paraphrasing  
 
-        Inspired by a **TripAdvisor-style** review experience and built
-        as a deep-learning business application using Hugging Face pipelines.
+        Inspired by TripAdvisor and powered by Hugging Face transformers.
         """
     )
     st.divider()
@@ -212,34 +182,23 @@ with st.sidebar:
     st.markdown(
         """
         - Write at least **10 words**  
-        - Describe **food, staff, location, ambience**  
-        - Use it as a tool for: **improve, standardize and correct reviews**
+        - Mention **staff, food, ambience, location**  
+        - Use it as a tool to **improve, standardize, and correct reviews**
         """
     )
 
-
 # ============================
-# 5) MAIN LAYOUT
+# 7) MAIN LAYOUT
 # ============================
 
-st.title("TripAdvisor-Style Hotel Review Refiner 🦉")
+left, right = st.columns([1.1, 1.1])
 
-st.markdown(
-    '<div class="ta-subtitle">Draft a hotel review and get an AI-refined review with star rating, topics, and a polished version of the text.</div>',
-    unsafe_allow_html=True,
-)
+# ---------- LEFT SIDE ----------
+with left:
 
-left_col, right_col = st.columns([1.1, 1.1])
-
-# ---------- LEFT: INPUT ----------
-with left_col:
     st.markdown("### ✍️ Draft your review")
 
-    # Hotel name (optional)
-    hotel_name = st.text_input(
-        "Hotel name (optional)",
-        placeholder="e.g. Grand Ocean View Hotel",
-    )
+    hotel_name = st.text_input("Hotel name (optional)", "")
 
     default_example = (
         "The hotel was in a fantastic location near the city center. The staff were incredibly friendly "
@@ -247,27 +206,16 @@ with left_col:
         "However, the room was a bit noisy at night."
     )
 
-    # Checkbox: if ticked, we show the example directly in the textarea
-    use_example = st.checkbox(
-        "Use example review to see what the output looks like",
-        value=False,
+    use_example = st.checkbox("Use example review to see what the output looks like")
+
+    review_text = st.text_area(
+        "Hotel review",
+        value=default_example if use_example else "",
+        placeholder="Write at least 10 words describing your stay...",
+        height=200,
     )
 
-    if use_example:
-        review_text = st.text_area(
-            "Hotel review",
-            value=default_example,
-            height=200,
-        )
-    else:
-        review_text = st.text_area(
-            "Hotel review",
-            placeholder="Write at least 10 words describing your stay, staff, food, location, ambience...",
-            height=200,
-        )
-
-    # Trip type + year grouped in a single expander (as optional metadata)
-    with st.expander("Optional review metadata", expanded=False):
+    with st.expander("Optional review metadata"):
         trip_type = st.selectbox(
             "Trip type",
             ["Not specified", "Business", "Couples", "Family", "Friends", "Solo"],
@@ -279,87 +227,80 @@ with left_col:
             index=0,
         )
 
-    # Button with magnifying glass
-    refine_button = st.button("🔍 Refine review", use_container_width=True)
+    if st.button("🔍 Refine review", use_container_width=True):
 
-    if refine_button:
-        if not review_text.strip():
-            st.warning("Review text cannot be empty.")
+        if len(review_text.split()) < 10:
+            st.warning("Please write at least 10 words.")
         else:
-            word_count = len(review_text.split())
-            if word_count < 10:
-                st.warning("Please enter a longer review (at least 10 words).")
-            else:
-                st.session_state["last_review"] = review_text
-                st.session_state["last_meta"] = {
-                    "hotel_name": hotel_name,
-                    "trip_type": trip_type,
-                    "stay_year": stay_year,
-                }
+            st.session_state.output = {
+                "review": review_text,
+                "hotel": hotel_name,
+                "trip": trip_type,
+                "year": stay_year,
+            }
 
-# ---------- RIGHT: OUTPUT ----------
-with right_col:
+# ---------- RIGHT SIDE ----------
+with right:
+
     st.markdown("### 📊 Output")
 
-    if "last_review" not in st.session_state:
+    if "output" not in st.session_state:
         st.info("Refine a review on the left to see the output here.")
     else:
-        review = st.session_state["last_review"]
-        meta = st.session_state.get("last_meta", {})
+        data = st.session_state.output
+        review = data["review"]
 
-        with st.spinner("Running Hugging Face pipelines on your review..."):
+        with st.spinner("Generating AI-enhanced review..."):
+
             stars = predict_stars(review)
-            star_string = stars_to_string(stars)
             topics = extract_aspects(review)
-            cleaned_review = paraphrase_review(review)
+            refined = paraphrase(review)
 
-        # Single big block that contains all the output
         st.markdown('<div class="ta-card">', unsafe_allow_html=True)
 
-        # Header with hotel name + meta
-        title_line = meta.get("hotel_name") or "Your stay"
-        st.markdown(f"#### 🏨 {title_line}")
+        # Header
+        title = data["hotel"] if data["hotel"] else "Your stay"
+        st.markdown(f"#### 🏨 {title}")
 
-        meta_bits = []
-        if meta.get("trip_type") and meta["trip_type"] != "Not specified":
-            meta_bits.append(f"Trip type: **{meta['trip_type']}**")
-        if meta.get("stay_year") and meta["stay_year"] != "Not specified":
-            meta_bits.append(f"Stayed in: **{meta['stay_year']}**")
-        if meta_bits:
-            st.markdown(" · ".join(meta_bits))
+        meta_line = []
+        if data["trip"] != "Not specified":
+            meta_line.append(f"Trip type: **{data['trip']}**")
+        if data["year"] != "Not specified":
+            meta_line.append(f"Stayed in: **{data['year']}**")
+
+        if meta_line:
+            st.markdown(" · ".join(meta_line))
 
         # Stars
         st.markdown(
             f"""
-            <div class="ta-stars">{star_string}</div>
-            <div class="ta-stars-text">Predicted rating: <b>{stars}/5</b> based on sentiment</div>
+            <div class="ta-stars">{stars_to_string(stars)}</div>
+            <div class="ta-stars-text">Predicted rating: <b>{stars}/5</b></div>
             """,
             unsafe_allow_html=True,
         )
 
         # Topics
-        st.markdown(
-            '<div class="ta-section-title">🧩 Topics detected</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="ta-section-title">🧩 Topics detected</div>',
+                    unsafe_allow_html=True)
+
         if topics:
-            chips_html = "".join(
-                [f'<span class="ta-chip">{t}</span>' for t in topics]
-            )
-            st.markdown(chips_html, unsafe_allow_html=True)
-        else:
             st.markdown(
-                "_No explicit topics detected. The review might be too generic._"
+                "".join(f'<span class="ta-chip">{t}</span>' for t in topics),
+                unsafe_allow_html=True,
             )
+        else:
+            st.markdown("_No specific topics detected._")
 
-        # Cleaned review (no separate title, just the box)
+        # Refined review
         st.markdown(
-            f'<div class="ta-review-box">{cleaned_review}</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div class="ta-meta">This version is generated automatically to standardize and refine the writing style.</div>',
+            f'<div class="ta-review-box">{refined}</div>',
             unsafe_allow_html=True,
         )
 
-        st.markdown("</div>", unsafe_allow_html=True)  # end big output card
+        st.markdown(
+            '<div class="ta-meta">AI-generated refined version of your review.</div>',
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("</div>", unsafe_allow_html=True)
