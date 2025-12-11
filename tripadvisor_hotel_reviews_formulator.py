@@ -6,9 +6,20 @@ from transformers import pipeline
 # ============================
 
 st.set_page_config(
-    page_title="TripAdvisor-Style Hotel Review Refiner",
+    page_title="TripAdvisor Hotel Review Refiner",
     page_icon="🦉",
     layout="wide",
+)
+
+st.markdown(
+    """
+    <style>
+    h1 {
+        color: #00a680 !important; /* TripAdvisor green */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 # Light TripAdvisor-ish theming
