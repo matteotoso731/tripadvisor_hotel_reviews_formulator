@@ -21,7 +21,7 @@ st.markdown(
         color:#00a680;
         font-weight:700;
         font-size:2.2rem;
-        line-height: 1.3;
+        line-height: 1.4;
     ">
         TripAdvisor Hotel Review Refiner 🦉
     </h1>
