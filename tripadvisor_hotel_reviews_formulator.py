@@ -117,7 +117,7 @@ st.markdown(
 def load_rating_pipe():
     return pipeline(
         "text-classification",
-        model="LiYuan/amazon-review-sentiment-analysis",
+        model="matte731/hotel_reviews_star",
         truncation=True,
     )
 
